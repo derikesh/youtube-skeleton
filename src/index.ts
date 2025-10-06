@@ -4,6 +4,7 @@ import {FFmpeg} from 'kiss-ffmpeg';
 
 import { Request , Response } from 'express';
 
+
 dotenv.config();
 
 //ffmpeg config code 
@@ -66,5 +67,5 @@ app.post('/video-process', async (req:Request, res:Response)=>{
 })
 
 app.listen(PORT , ()=>{
-    console.log(`THE SERVER IS RUNNIN IN PORT${PORT}`);
+    console.log(`the server is running on ports ${PORT} ..`);
 } )
