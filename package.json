@@ -1,8 +1,9 @@
 {
-  "type": "module",
   "dependencies": {
     "express": "^5.1.0",
-    "kiss-ffmpeg": "^0.4.2"
+    "kiss-ffmpeg": "^0.4.2",
+    "minio": "^8.0.6",
+    "redis": "^5.8.3"
   },
   "scripts": {
     "dev": "nodemon --watch src --exec ts-node src/index.ts",
