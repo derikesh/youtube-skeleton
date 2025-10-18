@@ -1,12 +1,13 @@
 import express from 'express';
 import { minioClient } from './minio/connectMinio';
-
+import dotenv from 'dotenv';
 import { spawn } from 'child_process';
 import fs from 'fs';
 import { connectRedis, client } from './redis/redisConnect';
 import { Request , Response } from 'express';
 
 
+dotenv.config();
 //ffmpeg config code 
 
 const app = express();
@@ -132,25 +133,37 @@ app.post('/video-prcoess-test', async (req: Request, res: Response) => {
 
 // })
 
-
 //
 
-console.log('s');
 
-//creating a redis group 
+let consumerName:string = process.env.CONSUMER || 'bob';
 
-app.post('/upload_video', async (req:Request, res:Response)=>{
+console.log('this is env',consumerName);
 
-    //add a redis stream when upload is completed;
-    try{
-        const streamRedis = await client.xAdd('upload-stream','*',{ 'video_name':'video_name_mr_least' ,'other_metadata':'thisismetadata'});
-        res.status(200).json({message:'message should have gone to next server'});
-        console.log(streamRedis);
-    }catch(err){
-        console.log('error during uploading video',err);
-    }
+async function listenStream() {
+   while(true){
 
-})
+    const uploads:any = await client.xReadGroup(
+        'upload-group',
+        consumerName,
+        {
+            key:'upload-stream',
+            id:'>',
+            
+        },{
+            BLOCK:0,
+        }
+
+     );
+    if(uploads) console.log('coming from stream',uploads[0].messages);
+    console.log('waiting')
+   }
+
+}
+
+
+listenStream();
+
 
 app.listen(PORT , ()=>{
     console.log(`the server is running on ports ${PORT} ..`);
