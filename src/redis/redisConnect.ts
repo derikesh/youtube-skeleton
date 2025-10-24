@@ -5,7 +5,13 @@ export const client = createClient({
 });
 
 export const connectRedis = async ()=>{
-    client.on('error', err => console.log('Redis Client Error', err.message));
-    await client.connect();
+    try{
+        await client.connect();
+        console.log('Successfully connected to redis client');
+        return true;
+    }catch(err:any){
+        console.log('Redis client Connection error :',err.message);
+        return false
+    }
 }
 

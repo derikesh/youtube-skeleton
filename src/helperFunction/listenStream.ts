@@ -2,31 +2,79 @@ import { spawn } from 'child_process';
 import {client} from '../redis/redisConnect';
 import Stream from 'stream';
 import { minioClient } from '../minio/connectMinio';
+import pLimit from 'p-limit';
+
+
+//helper function 
+function cleanUpName( filename:string ){
+    return filename.replace(/\.(mp4|mov|avi|mkv|webm)$/i, '');
+}
+
+
+interface RedisStreamMessage {
+  id: string;
+  message: {
+    fileName: string;
+    [key: string]: any;  
+  }
+}
 
 //listing to stream
+let count = 0;
+
+//listning to process running to gracefully shutdown redis running 
+let running = true;
+
+process.on('SIGINT',()=>{
+  running = false;
+  console.log('Gracefully shutting down redis ,caught SIGINT');
+})
+
+process.on('SIGTERM',()=>{
+  console.log('Gracefullu shutting down redis , caught SIGTERM');
+})
+
 export async function listenStream(consumerName:string) {
   try{
-    while(true){
-      const uploads:any = await client.xReadGroup(
+      while(running){
+        const uploads:any = await client.xReadGroup(
         'upload-group',
         consumerName,
         {
           key:'upload-stream',
           id:'>',
         },{
-          COUNT:10,
-          BLOCK:0,
+          COUNT:2,
+          BLOCK:5000,
         }
       );
-      if(uploads.length>0) {
+
+      if(!uploads) {continue };
+
         console.log('coming from stream',uploads[0].messages);
-        for( const message of uploads[0].messages ){
-          await transcodingVideo(message.fileName ,`${message.fileName}-transcoded.mp4`,{ stream:'upload-stream',group:'upload-group',id:message.id } );
-        }
+        //to allow multiple message to run simultensiouly
+        let limit = pLimit(2);
+        // uploads[0].messages.map( (item:RedisStreamMessage) => console.log('the name ius',item.message.fileName) ) 
+        const results = await Promise.allSettled( uploads[0].messages.map( (msg:RedisStreamMessage)=>{
+          return limit(()=>transcodingVideo(msg.message.fileName ,`transcoded/${cleanUpName(msg.message.fileName)}-transcoded-${count}.mp4`,{ stream:'upload-stream',group:'upload-group',id:msg.id } ));
+        } ) )
+
+        count++;
+
+        results.forEach( (result,index)=>{
+            if(result.status =='rejected'){
+              const msg = uploads[0].messages[index];
+              console.log('failed to fetch on ',msg);
+            }
+        } )
+      
       }
-    }
   }catch(err:any){
-    console.log('error during reading group , error :',err.message)
+    console.log('error during reading group , error :',err.message);
+    
+  }finally{
+      await client.quit();
+      console.log('connection closed with redis gracefully');
   }
 }
 
@@ -37,7 +85,7 @@ async function transcodingVideo(fileName:string,outputFileName:string,groupInfo:
   let child_process:any = null;
   
   try{
-    dataStream = await minioClient.getObject('mybucket', fileName);
+    dataStream = await minioClient.getObject('firstbucket', fileName);
     child_process = spawn('ffmpeg',[
       '-y',
       '-ss', '10',
@@ -74,6 +122,10 @@ async function transcodingVideo(fileName:string,outputFileName:string,groupInfo:
         reject(new Error(err));
       });
 
+      child_process.stderr.on('data', (chunk:any) => {
+      console.log('ffmpeg:', chunk.toString());
+      });
+
       child_process.stdin.on('error',(err:any)=>{
         console.log('error during stdin pipe');
         cleanup();
@@ -96,7 +148,7 @@ async function transcodingVideo(fileName:string,outputFileName:string,groupInfo:
 
         try {
           const bufferedData = Buffer.concat(streamedData);
-          await minioClient.putObject('transcoded',outputFileName,bufferedData);
+          await minioClient.putObject('firstbucket',outputFileName,bufferedData);
           console.log('successfully saved transcoded video');
           await client.xAck(groupInfo.stream, groupInfo.group, groupInfo.id);
           console.log('redis stream acknowledged!');
@@ -108,12 +160,8 @@ async function transcodingVideo(fileName:string,outputFileName:string,groupInfo:
       });
 
       function cleanup() {
-        if(dataStream) {
-          dataStream.destroy();
-        }
-        if(child_process) {
-          child_process.kill();
-        }
+       if (dataStream && !dataStream.destroyed) dataStream.destroy();
+      if (child_process && !child_process.killed) child_process.kill('SIGKILL');
       }
     });
 

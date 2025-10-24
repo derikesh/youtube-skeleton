@@ -4,20 +4,21 @@ import * as Minio from 'minio'
 // endpoint and an authorized user's credentials
 // play.min.io is the MinIO public test cluster
 export const minioClient = new Minio.Client({
-  endPoint: '192.168.101.2',
+  endPoint: '192.168.101.9',
   port: 9000,
   useSSL: false,
   accessKey: 'minioadmin',
   secretKey: 'minioadmin',
 })
 
+
 // Destination bucket
 const bucket = 'firstbucket'
 
-
 // If it doesn't, create it
-async function checkBucket(){
+export async function checkBucket(){
    try{
+      await minioClient.listBuckets();
      const exists = await minioClient.bucketExists(bucket)
 
         if (exists) {
@@ -26,13 +27,8 @@ async function checkBucket(){
         await minioClient.makeBucket(bucket, 'us-east-1')
         console.log('Bucket ' + bucket + ' created in "us-east-1".')
         }
-   }catch(err){
-    console.log('error during connecting to minio server',err)
+   }catch(err:any){
+    console.log('error during connecting to minio server',err.message)
    }
 }
-
-checkBucket();
-
-
-
 
