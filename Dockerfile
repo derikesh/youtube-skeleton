@@ -4,7 +4,7 @@ RUN apk add --no-cache ffmpeg bash
 
 WORKDIR /app
 
-COPY package*.json /app/
+COPY package*.json /app
 
 RUN npm install 
 

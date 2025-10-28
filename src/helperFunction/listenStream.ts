@@ -54,6 +54,7 @@ export async function listenStream(consumerName:string) {
         console.log('coming from stream',uploads[0].messages);
         //to allow multiple message to run simultensiouly
         let limit = pLimit(3);
+        console.log('to check',uploads[0].messages[0].message.fileName);
         const results = await Promise.allSettled( uploads[0].messages.map( (msg:RedisStreamMessage)=>{
           return limit(()=>transcodingVideo(msg.message.fileName ,`transcoded/${cleanUpName(msg.message.fileName)}-transcoded-${count}.mp4`,{ stream:'upload-stream',group:'upload-group',id:msg.id } ));
         } ) )
@@ -161,4 +162,4 @@ async function transcodingVideo(fileName:string,outputFileName:string,groupInfo:
     if(dataStream) dataStream.destroy();
     if(child_process) child_process.kill();
   }
-}
+}3
