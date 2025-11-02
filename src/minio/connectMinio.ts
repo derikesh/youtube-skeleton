@@ -5,7 +5,7 @@ import { timeoutFunction } from '../utility/utilityFunction'
 // endpoint and an authorized user's credentials
 // play.min.io is the MinIO public test cluster
 export const minioClient = new Minio.Client({
-  endPoint: '192.168.101.8',
+  endPoint: '192.168.101.5',
   port: 9000,
   useSSL: false,
   accessKey: 'minioadmin',
